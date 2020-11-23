@@ -72,8 +72,12 @@ legend({'low productivity','medium productivity','high productivity'},'Location'
 % c}\left[C(k',z')\right]\right\}$$
 
 tic % Reset timer
-C     = (par.r.*meshes.k+meshes.z); %Initial guess for consumption policy: roll over assets, must be strictly increasing and positive
-%resembles the steady state
+C     = (par.r.*meshes.k+meshes.z); 
+%Initial guess for consumption policy: Available resources are:
+% Y = meshes.z+(1+par.r)*meshes.k; % Cash at hand (Labor income plus assets with dividend)
+% Expanded, this is: (z + par.r*k) + k.
+% Thus our policy guess is to "roll over assets". We consume (z + par.r*k)
+% and leave the "+ k" for the next period.
 Cold  = C; % Save old policy
 distEG  = 1; % Initialize Distance
 iterEG  = 1; % Initialize Iteration count
@@ -154,8 +158,12 @@ function [C,Kprime] = EGM(C,mutil,invmutil,par,mpar,P,meshes,gri)
     mu     = mutil; % Calculate marginal utility from c'
     emu    = (1+par.r)*par.beta*1./(C);     % Calculate expected marginal utility
     Cstar  = C %meshes.z.*meshes.k.^(par.alpha)-meshes.k;     % Calculate cstar(m',z)
-    Kstar  = (meshes.k-meshes.z+Cstar)/(1+par.r) %(par.alpha.*meshes.z)/(1+par.r)^(1/(1-par.alpha); % Calculate mstar(m',z)
-    Kprime = meshes.k; % initialze Capital Policy
+    Kstar  = (meshes.k-meshes.z+Cstar)/(1+par.r) 
+    % recall that consumption = what's inside the utiity function, that is:
+    % consumption = (1+r)k - k' + z
+    % Solving for k (i.e., k endogenous):
+    % k* = (k' - z + Cstar)/(1+r), which is what we have above for Kstar 
+    Kprime = meshes.k; % initialze exogenous Capital Policy
 
     for z=1:mpar.nz % For massive problems, this can be done in parallel
         % generate savings function k(z,kstar(k',z))=k'

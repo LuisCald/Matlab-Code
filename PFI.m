@@ -39,7 +39,7 @@ end
 
 
 points = [10 20 30];
-
+ss=1
 for ss=1:length(points)
     mpar.nk=points(ss);
     %mpar.nz=points(ss);
@@ -47,14 +47,14 @@ for ss=1:length(points)
     grid.k = exp(linspace(log(mpar.mink),log(mpar.maxk),mpar.nk)); %Define asset grid on log-linearspaced
     tic
     %% Meshes and Cash at Hand (Y)
-    [meshes.k,  meshes.z]= ndgrid(grid.k,grid.z); %Returns a 100x2. And we ask for two of those
-    Y = meshes.z.*meshes.k.^par.alpha + (1-par.delta).*meshes.k;
+    [meshes.k,  meshes.z]= ndgrid(grid.k,grid.z); %Returns a 10x2 for the capital grid and productivity grid.
+    Y = meshes.z.*meshes.k.^par.alpha + (1-par.delta).*meshes.k; % available resources
     
     %% (A) Based on Spline Interpolation
     
     %% Initialize Value and Policy Functions
-    V      = zeros(mpar.nk,mpar.nz); %Always initialize with zeros of a 100x2
-    kprime = repmat(grid.k(:),[1,mpar.nz]); %grid.k(:) is a 100x1 and we multiply it by 1x2 = 100x2, 1 for each productivity state
+    V      = zeros(mpar.nk,mpar.nz); %Always initialize with zeros of size k-grid and z-grid
+    kprime = repmat(grid.k(:),[1,mpar.nz]); %grid.k(:) is a 10x1 and we multiply it by 1x2 = 10x2, 1 for each productivity state
     Vnew   = zeros(mpar.nk,mpar.nz); %100x2
     
     %% Value Function Iteration
@@ -75,52 +75,50 @@ for ss=1:length(points)
     V      = zeros(mpar.nk,mpar.nz); %Now we start over, so we get a fresh Value function matrix 100x2
     tic
     %% Policy Function Iteration
-% Under policy function iteration, the idea is to iterate the policy
-%to eliminate the steps of finding a max. This is what I mean:
-%In VFI, we find the K' which maximizes our value
-%function. If the value function and our initial guess have a large
-%difference, then we continue by replacing our guess with V1 and finding a
-%new K'. With Policy function iteration, we take that the policy function
-%we solve for given that initial guess and then, instead of evaluating that
-%value function for that K', we actually take the sum over time for that
-%K'. In other words, we apply that K' forever. Doing so, generates a new
-%Value function and we use that as our new guess. This cuts the amount of
-%iterations and truly focuses on the problem. Using the new guess, we find
-%a new policy function, and do the same to that to get a new guess.
-%Convergence is QUADRATIC here!
     dist   = 9999;
     count  = 1;
     while dist(count)>mpar.crit
         count=count+1;
-        [~,kprime]        = VFI_update_lin(V,Y,util,par,mpar,grid,prob); %Returns the arg maxes
+        [~,kprime]        = VFI_update_lin(V,Y,util,par,mpar,grid,prob); %Returns the arg maxes, 10x2, h(n=the iteration number)
         
-        [~,idk]                 = histc(kprime,grid.k); %Just returning the inputs. creates a Matrix with one column for each. 
-                                                        %
+        [~,idk]                 = histc(kprime,grid.k); % an array the same size as kprime indicating the bin number that 
+        % each entry in kprime sorts into. For example, in the first
+        % iteration, the kprime are near zero. The first bin of grid
+        % k is 0.100-0.1167 in this case. So, because kprime are below 0.100, they
+        % fall into this bin (<=0.100), which does not exist. Thus, we have
+        % to create the following line to ensure that they indeed fall into
+        % at least the smallest grid.
+                                                        
         idk(kprime<=grid.k(1))   = 1; %index of kprime. Histc returns bullshit if not corrected for those kprime outside of the grid
-        idk(kprime>=grid.k(end)) = mpar.nk-1;
-        distance    = kprime - grid.k(idk);
+        idk(kprime>=grid.k(end)) = mpar.nk-1;  
+        distance    = kprime - grid.k(idk); 
+% compare (k'-k(id_k)). k(id_k) is the capital choice for the bin number that kprime fell into.
+% For example, k'=.1100, which means it falls in the first bin. 
+% So 0.1100 - 0.1000 = 0.0100 is the distance from the grid edge. 
         weightright = distance./(grid.k(idk+1)-grid.k(idk)); %This is the weight placed on the transition matrix right. 
-        %This is the difference between the kprime and grid.
+        % You can think of this as the slope. where distance = (y'-y) and
+        % (grid.k(idk+1)-grid.k(idk)) is the change in x-values, our grid.
+
         weightleft  = 1-weightright;%This is the weight placed on the transition matrix left
         %The transition matrix shows probabilities from one state to the
         %next. In this case, the capital states are the different states. 
         %Trans = sparse(mpar.nk*mpar.nz,mpar.nk*mpar.nz);
 
-        Trans_array = zeros(mpar.nk,mpar.nz,mpar.nk,mpar.nz); %Assets now, Income now, Assets next, Income next 100x2x100x2
+        Trans_array = zeros(mpar.nk,mpar.nz,mpar.nk,mpar.nz); %Assets now, Income now, Assets next, Income next ((10x2)x10)x2
         for zz=1:mpar.nz % all current income states
             for kk=1:mpar.nk % all current asset states
                 Trans_array(kk,zz,idk(kk,zz),:)   =  weightleft(kk,zz) *reshape(prob.z(zz,:),[1 1 1 mpar.nz]);
                 Trans_array(kk,zz,idk(kk,zz)+1,:) =  weightright(kk,zz)*reshape(prob.z(zz,:),[1 1 1 mpar.nz]);
             end
         end
-        Trans=(reshape(Trans_array,[mpar.nk*mpar.nz, mpar.nk*mpar.nz])); %creates the final 200x200
+        Trans=(reshape(Trans_array,[mpar.nk*mpar.nz, mpar.nk*mpar.nz])); % creates the final 20x20
         
         ustar = util(Y-kprime); % utility under current policy. Uses the kprime from above, which used our initial guess.
         % The kprime is the next period optimal stock, which we got from the
         %interpolation
         
         Vnew  = (eye(size(Trans))-par.beta*Trans)\ustar(:); %We take the K' over time and use it as our
-        %new guess
+        %new guess. This is the sum expressed in matrix form.
         dd    = max(abs(Vnew(:)-V(:)));
         dist(count) = dd; % Calculate distance between old guess and update
         V     = reshape(Vnew,[mpar.nk,mpar.nz]);

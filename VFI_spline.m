@@ -69,7 +69,6 @@ toc
 [~,kprime] = VF_spline(V, util, par, mpar,grid,prob,Y); %create policy functions (in indexes)
 
 
-
 %% Plot results
 figure(1)
 semilogy(dist(2:end))
@@ -102,10 +101,13 @@ for zz =1:mpar.nz %loop over productivity states as required.
     % kp = 0;
     for kk =1:mpar.nk %loop over current capital
         y = Y(kk,zz);%gri.z(zz).*gri.k(kk).^par.alpha +(1-par.delta)*gri.k; % available resources
-        f = @(k)(-(util(y-k) + ev_int({k,grid.z(zz)}))); % objective function t.b. maximized w.r.t. k
-        [kp, v] = fminbnd(f,0, y); % mimimization of -f
+        f = @(k)(-(util(y-k) + ev_int({k,grid.z(zz)}))); % non-linear objective function t.b. maximized w.r.t. k
+        [kp, v] = fminbnd(f,0, y); 
+% mimimization of -f for k in the interval 0 and y (just means we could
+% invest nothing, so bounded below by zero and we are bounded above by the
+% available resources, y
         Vnew(kk,zz) = -v;
-        policy(kk,zz) = kp;
+        policy(kk,zz) = kp; % kp for k-prime
     end
 end
 %So now for each starting capital point and each state z, we have a
